@@ -11,20 +11,10 @@
       "email": "torsten.burschka@ideaplexus.com"
     }
   ],
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "ssh://git@bitbucket.ideaplexus.com:7999/ipc/testbundle.git"
-    }
-  ],
   "require": {
-    "php": ">= 5.5.9",
-    "symfony/symfony": "~2.7|~3.0"
+    "php": ">= 5.5.9"
   },
   "require-dev": {
-    "symfony/monolog-bundle": "@stable",
-    "symfony/phpunit-bridge": "@stable",
-    "ipc/test-bundle": "@stable",
     "phpunit/phpunit": "@stable",
     "pdepend/pdepend": "@stable",
     "phploc/phploc": "@stable",
