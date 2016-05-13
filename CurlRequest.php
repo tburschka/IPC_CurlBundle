@@ -13,14 +13,14 @@ class CurlRequest implements RequestInterface
     protected $curlHandle;
 
     /**
-     * Key for the cURL handle
-     * 
-     * @var string
+     * Response headers
+     *
+     * @var array
      */
-    protected $key;
+    protected $responseHeaders = [];
 
     /**
-     * CurlRequest constructor.
+     * CurlRequest constructor
      *
      * @param string        $url
      * @param null|resource $curlHandle
@@ -34,27 +34,29 @@ class CurlRequest implements RequestInterface
         }
         if (is_null($curlHandle)) {
             $this->curlHandle = curl_init($url);
-            curl_setopt($this->curlHandle, CURLOPT_RETURNTRANSFER, 1);
         } elseif ($this->isCurlHandle($curlHandle)) {
             $this->curlHandle = $curlHandle;
-            curl_setopt($this->curlHandle, CURLOPT_URL, $url);
+            $this->setOption(CURLOPT_URL, $url);
         } else {
-            throw new RequestException('curlHandle has to be a valid curl handle');
+            throw new RequestException('curlHandle has to be a valid cURL handle');
         }
-        $this->key = (string)$this->curlHandle;
+        $this->setOption(CURLOPT_RETURNTRANSFER, true);
+
+        // add callback for processing and storing response headers
+        $this->setOption(CURLOPT_HEADERFUNCTION, function ($curlHandle, $header) {
+            $trimmedHeader = trim($header);
+            $colonPosition = strpos($trimmedHeader, ':');
+            if ($colonPosition > 0) {
+                $key   = substr($trimmedHeader, 0, $colonPosition);
+                $value = preg_replace('/^\W+/', '', substr($trimmedHeader, $colonPosition));
+                $this->responseHeaders[$key] = $value;
+            }
+            return strlen($header);
+        });
     }
 
     /**
-     * Return the key for the cURL handle
-     * @return string
-     */
-    public function getKey()
-    {
-        return $this->key;
-    }
-
-    /**
-     * Returns the cURL handle
+     * Get the cURL handle
      *
      * @return resource
      */
@@ -64,21 +66,42 @@ class CurlRequest implements RequestInterface
     }
 
     /**
-     * Set cURL options
+     * Set multiple cURL options
      *
      * @param array $options
      *
-     * @return mixed
+     * @return bool
      */
     public function setOptions(array $options)
     {
-        return curl_setopt_array($this->curlHandle, $options);
+        $result = true;
+        foreach ($options as $option => $value) {
+            $result &= $this->setOption($option, $value);
+        }
+        return $result;
+    }
+
+    /**
+     * Set single cURL option
+     *
+     * @param string|int $option
+     * @param mixed      $value
+     *
+     * @return bool
+     */
+    public function setOption($option, $value)
+    {
+        if (is_string($option)) {
+            $option = constant($option);
+        }
+        return curl_setopt($this->curlHandle, $option, $value);
     }
 
     /**
      * Execute a single cURL request
      *
-     * @return mixed
+     * @return Response
+     *
      * @throws RequestException
      */
     public function exec()
@@ -86,7 +109,16 @@ class CurlRequest implements RequestInterface
         if (!$this->isCurlHandle($this->curlHandle)) {
             throw new RequestException('curlHandle is already closed');
         }
-        return curl_exec($this->curlHandle);
+
+        $start = microtime(true);
+        $body  = curl_exec($this->curlHandle);
+        $end   = microtime(true);
+
+        $builder  = new ResponseBuilder();
+        $response = $builder->buildResponse($this->curlHandle, $this->getResponseHeaders(), $body, $start, $end);
+        curl_close($this->curlHandle);
+
+        return $response;
     }
 
     /**
@@ -101,13 +133,12 @@ class CurlRequest implements RequestInterface
     }
 
     /**
-     * Get cURL transfer info
+     * Get the response headers
      *
-     * @param int $opt
-     * @return mixed
+     * @return array
      */
-    public function getInfo($opt = null)
+    public function getResponseHeaders()
     {
-        return curl_getinfo($this->curlHandle, $opt);
+        return $this->responseHeaders;
     }
 }

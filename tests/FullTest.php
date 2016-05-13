@@ -11,23 +11,19 @@ class FullTest extends \PHPUnit_Framework_TestCase
     {
         $curlRequest = new CurlBundle\CurlRequest('https://www.example.com/');
         $response = $curlRequest->exec();
-        $this->assertRegExp('~<title>Example Domain</title>~', $response);
+        $this->assertRegExp('~<title>Example Domain</title>~', $response->getBody());
     }
 
     public function testMultiCurlService()
     {
-        $service = new CurlBundle\Service\MultiCurlService();
+        $handler = new CurlBundle\MultiCurlHandler();
         $curlRequest1 = new CurlBundle\CurlRequest('http://www.example.com/');
         $curlRequest2 = new CurlBundle\CurlRequest('http://www.example.com/');
-        $service->addRequest($curlRequest1);
-        usleep(1000);
-        $service->addRequest($curlRequest2);
-        $response2 = $service->getResponse($curlRequest2);
-        var_dump($response2);
-        $response1 = $service->getResponse($curlRequest1);
-        var_dump(is_array($response1));
-        $response2 = $service->getResponse($curlRequest2);
-        var_dump((string) $curlRequest2->getCurlHandle());
-        var_dump(is_array($response2), curl_getinfo($curlRequest2->getCurlHandle(), CURLINFO_EFFECTIVE_URL));
+        $handler->addRequest($curlRequest1);
+        $handler->addRequest($curlRequest2);
+        $response2 = $handler->getResponse($curlRequest2);
+        $this->assertInstanceOf(CurlBundle\Response::class, $response2);
+        $response1 = $handler->getResponse($curlRequest1);
+        $this->assertInstanceOf(CurlBundle\Response::class, $response1);
     }
 }

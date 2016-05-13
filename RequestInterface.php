@@ -6,36 +6,42 @@ interface RequestInterface
 {
 
     /**
-     * Returns the cURL handle
+     * Get the cURL handle
      *
      * @return resource
      */
     public function getCurlHandle();
 
     /**
-     * Set cURL options
+     * Set multiple cURL options
      *
      * @param array $options
      *
-     * @return mixed
+     * @return bool
      */
     public function setOptions(array $options);
 
     /**
-     * Get cURL transfer info
+     * Set single cURL option
      *
-     * @param int $opt
-     * @return mixed
+     * @param string|int $option
+     * @param mixed      $value
+     *
+     * @return bool
      */
-    public function getInfo($opt = null);
+    public function setOption($option, $value);
 
     /**
-     * @return
+     * Get the response headers
+     *
+     * @return array
+     */
+    public function getResponseHeaders();
+
+    /**
+     * Execute cURL request and get a response
+     *
+     * @return Response
      */
     public function exec();
-
-    /**
-     * @return string
-     */
-    public function getKey();
 }
