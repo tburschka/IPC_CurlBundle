@@ -16,11 +16,6 @@ class MultiCurlService
     private $curlMultiHandle;
 
     /**
-     * @var array
-     */
-    private $timers;
-
-    /**
      * @var bool
      */
     private $running;
@@ -76,7 +71,7 @@ class MultiCurlService
 
         // if no error returned, call multi exec for the new handle
         if (CURLM_OK === $code || CURLM_CALL_MULTI_PERFORM === $code) {
-            $this->startTimer($curlHandle);
+            $this->responses[$key]['start'] = microtime(true);
             $this->status = curl_multi_exec($this->curlMultiHandle, $this->running);
         }
 
@@ -90,15 +85,15 @@ class MultiCurlService
     public function getResponse(RequestInterface $request)
     {
         $key = $request->getKey();
-        if (isset($this->responses[$key]['object'])) {
-            return $this->responses[$key]['object'];
+        if (array_key_exists($key, $this->responses) && $this->responses[$key] instanceof Response) {
+            return $this->responses[$key];
         } else {
 
             $innerSleepInt = $outerSleepInt = 1;
-            while ($this->running && ($this->status == CURLM_OK || $this->status == CURLM_CALL_MULTI_PERFORM)) {
+            while ($this->running && ($this->status === CURLM_OK || $this->status === CURLM_CALL_MULTI_PERFORM)) {
 
-                usleep(intval($outerSleepInt));
-                $outerSleepInt = intval(max(1, ($outerSleepInt * $this->sleepIncrement)));
+                usleep((int)$outerSleepInt);
+                $outerSleepInt = (int) max(1, $outerSleepInt * $this->sleepIncrement);
                 $multiSelect = curl_multi_select($this->curlMultiHandle, 0);
                 /* @see https://bugs.php.net/bug.php?id=63411 */
                 if ($multiSelect === -1) {
@@ -109,33 +104,44 @@ class MultiCurlService
                 if ($multiSelect >= CURLM_CALL_MULTI_PERFORM) {
                     do {
                         $this->status = curl_multi_exec($this->curlMultiHandle, $this->running);
-                        usleep(intval($innerSleepInt));
-                        $innerSleepInt = intval(max(1, ($innerSleepInt * $this->sleepIncrement)));
+                        usleep((int) $innerSleepInt);
+                        $innerSleepInt = (int) max(1, $innerSleepInt * $this->sleepIncrement);
                     } while ($this->status === CURLM_CALL_MULTI_PERFORM);
                     $innerSleepInt = 1;
                 }
 
-                while ($done = curl_multi_info_read($this->curlMultiHandle)) {
-                    $currentHandle = $done['handle'];
-                    $currentKey    = $this->getKey($currentHandle);
-                    $this->stopTimer($currentHandle);
-                    $this->responses[$currentKey]['body'] = curl_multi_getcontent($currentHandle);
-                    foreach ($this->getResponseProperties() as $name => $const) {
-                        $this->responses[$currentKey][$name] = curl_getinfo($currentHandle, $const);
-                    }
-                    curl_multi_remove_handle($this->curlMultiHandle, $currentHandle);
-                    curl_close($currentHandle);
-                    // FIXME: $currentHandle isn't closed here
-                }
+                $this->saveResponseData();
 
                 if (isset($this->responses[$key]['body'])) {
-                    $this->responses[$key]['object'] = new Response($this->responses[$key]);
-                    return $this->responses[$key]['object'];
+                    $this->responses[$key] = new Response($this->responses[$key]);
+                    return $this->responses[$key];
                 }
             }
         }
 
         return false;
+    }
+
+    /**
+     * Save all completed responses
+     */
+    protected function saveResponseData()
+    {
+        while ($done = curl_multi_info_read($this->curlMultiHandle)) {
+            $curlHandle = $done['handle'];
+            $key        = $this->getKey($curlHandle);
+            $this->responses[$key]['end']  = microtime(true);
+            $this->responses[$key]['url']  = curl_getinfo($curlHandle, CURLINFO_EFFECTIVE_URL);
+            $this->responses[$key]['time'] = curl_getinfo($curlHandle, CURLINFO_TOTAL_TIME);
+            $this->responses[$key]['code'] = curl_getinfo($curlHandle, CURLINFO_HTTP_CODE);
+            $this->responses[$key]['body'] = curl_multi_getcontent($curlHandle);
+            foreach ($this->getResponseProperties() as $name => $const) {
+                $this->responses[$key][$name] = curl_getinfo($curlHandle, $const);
+            }
+            curl_multi_remove_handle($this->curlMultiHandle, $curlHandle);
+            curl_close($curlHandle);
+            // FIXME: $curlHandle isn't closed here
+        }
     }
 
     /**
@@ -161,45 +167,6 @@ class MultiCurlService
     protected function getKey($curlHandle)
     {
         return (string)$curlHandle;
-    }
-
-    /**
-     * Start the timer
-     *
-     * @param resource $curlHandle
-     */
-    protected function startTimer($curlHandle)
-    {
-        $this->responses[$this->getKey($curlHandle)]['start'] = microtime(true);
-    }
-
-    /**
-     * @param resource $curlHandle
-     */
-    protected function stopTimer($curlHandle)
-    {
-        $key = $this->getKey($curlHandle);
-        $this->responses[$key]['end']  = microtime(true);
-        $this->responses[$key]['url']  = curl_getinfo($curlHandle, CURLINFO_EFFECTIVE_URL);
-        $this->responses[$key]['time'] = curl_getinfo($curlHandle, CURLINFO_TOTAL_TIME);
-        $this->responses[$key]['code'] = curl_getinfo($curlHandle, CURLINFO_HTTP_CODE);
-    }
-
-    /**
-     * @param resource $curlHandle
-     * @param string   $header
-     * @return int
-     */
-    private function headerCallback($curlHandle, $header)
-    {
-        $trimmedHeader = trim($header);
-        $colonPosition = strpos($trimmedHeader, ':');
-        if ($colonPosition > 0) {
-            $key = substr($trimmedHeader, 0, $colonPosition);
-            $val = preg_replace('/^\W+/', '', substr($trimmedHeader, $colonPosition));
-            $this->responses[$this->getKey($curlHandle)]['headers'][$key] = $val;
-        }
-        return strlen($header);
     }
 
     /**
