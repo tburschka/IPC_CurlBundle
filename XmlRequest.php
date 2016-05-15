@@ -10,6 +10,8 @@ class XmlRequest extends CurlRequest
      *
      * @param string $url
      * @param null   $curlHandle
+     *
+     * @throws RequestException
      */
     public function __construct($url, $curlHandle = null)
     {
@@ -20,7 +22,7 @@ class XmlRequest extends CurlRequest
     /**
      * Set cURL body
      *
-     * @param $data
+     * @param mixed $data
      *
      * @return bool
      */

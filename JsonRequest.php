@@ -10,6 +10,8 @@ class JsonRequest extends CurlRequest
      * 
      * @param string $url
      * @param null   $curlHandle
+     * 
+     * @throws RequestException
      */
     public function __construct($url, $curlHandle = null)
     {

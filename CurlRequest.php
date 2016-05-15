@@ -32,7 +32,7 @@ class CurlRequest implements RequestInterface
         if (!is_string($url)) {
             throw new RequestException('url has to be a string');
         }
-        if (is_null($curlHandle)) {
+        if (null === $curlHandle) {
             $this->curlHandle = curl_init($url);
         } elseif ($this->isCurlHandle($curlHandle)) {
             $this->curlHandle = $curlHandle;

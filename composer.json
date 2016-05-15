@@ -3,12 +3,12 @@
   "type": "library",
   "description": "",
   "keywords": ["php"],
-  "homepage": "http://bitbucket.ideaplexus.com/projects/IPC/repos/curlbundle",
+  "homepage": "https://github.com/tburschka/ipc-curl-bundle",
   "license": "MIT",
   "authors": [
     {
       "name": "Torsten Burschka",
-      "email": "torsten.burschka@ideaplexus.com"
+      "email": "torsten.burschka@gmail.com"
     }
   ],
   "require": {
